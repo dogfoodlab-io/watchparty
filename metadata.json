@@ -1,0 +1,8 @@
+{
+  "name": "Async Watch Party",
+  "description": "The modern way to watch together, apart. Comment on every moment of your favorite shows and share your reaction timeline with friends for a synchronized experience on your own schedule.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
