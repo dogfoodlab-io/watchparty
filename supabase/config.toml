@@ -17,7 +17,7 @@ enabled = true
 schema_paths = []
 
 [db.seed]
-enabled = false
+enabled = true
 sql_paths = ["./seed.sql"]
 
 [auth]
@@ -28,4 +28,5 @@ jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
 
-auth.email.enable_signup = true
+[auth.email]
+enable_signup = true
