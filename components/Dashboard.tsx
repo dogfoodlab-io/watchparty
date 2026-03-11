@@ -58,8 +58,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onGoToParty }) => {
       // Fetch extra details to get the runtime
       let runtimeSec = 7200; // Default 2 hours
       try {
-        const tmdbApiKey = import.meta.env.VITE_TMDB_API_KEY ?? '';
-        const tmdbAccessToken = import.meta.env.VITE_TMDB_ACCESS_TOKEN ?? '';
+        const tmdbApiKey = import.meta.env.VITE_TMDB_API_KEY ?? process.env.TMDB_API_KEY ?? '';
+        const tmdbAccessToken = import.meta.env.VITE_TMDB_ACCESS_TOKEN ?? process.env.TMDB_ACCESS_TOKEN ?? '';
         
         const endpoint = `https://api.themoviedb.org/3/${type}/${item.id}`;
         const headers: HeadersInit = { Accept: 'application/json' };
