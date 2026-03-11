@@ -13,10 +13,13 @@ interface TimelineEvent {
   timestamp_sec: number;
   text: string;
   emojis: string[];
+  is_spoiler: boolean;
   profiles?: {
     display_name: string;
   };
 }
+
+const QUICK_EMOJIS = ['😂', '😱', '😭', '🔥', '❤️', '👏', '😤', '🤯', '😍', '💀', '🥹', '⚡'];
 
 const formatTime = (seconds: number) => {
   const h = Math.floor(seconds / 3600);
@@ -40,8 +43,11 @@ const PartyDetail: React.FC<PartyDetailProps> = ({ partyId, onBack }) => {
   // Timeline State
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [newEventText, setNewEventText] = useState('');
+  const [selectedEmojis, setSelectedEmojis] = useState<string[]>([]);
+  const [isSpoiler, setIsSpoiler] = useState(false);
   const [posting, setPosting] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [revealedSpoilers, setRevealedSpoilers] = useState<Set<string>>(new Set());
 
   const [showSettings, setShowSettings] = useState(false);
   const [settingsDurationMin, setSettingsDurationMin] = useState(120);
@@ -80,6 +86,7 @@ const PartyDetail: React.FC<PartyDetailProps> = ({ partyId, onBack }) => {
           timestamp_sec,
           text,
           emojis,
+          is_spoiler,
           profiles(display_name)
         `)
         .eq('party_id', partyId)
@@ -206,9 +213,9 @@ const PartyDetail: React.FC<PartyDetailProps> = ({ partyId, onBack }) => {
   };
 
   const handlePostEvent = async () => {
-    if (!supabase || !userId || !newEventText.trim()) return;
+    if (!supabase || !userId || (!newEventText.trim() && selectedEmojis.length === 0)) return;
     setPosting(true);
-    
+
     try {
       const { error } = await supabase
         .from('timeline_events')
@@ -216,18 +223,27 @@ const PartyDetail: React.FC<PartyDetailProps> = ({ partyId, onBack }) => {
           party_id: partyId,
           user_id: userId,
           timestamp_sec: currentTime,
-          text: newEventText.trim(),
-          emojis: []
+          text: newEventText.trim() || null,
+          emojis: selectedEmojis,
+          is_spoiler: isSpoiler,
         });
 
       if (error) throw error;
       setNewEventText('');
+      setSelectedEmojis([]);
+      setIsSpoiler(false);
     } catch (err) {
       console.error('Failed to post event', err);
       alert('Failed to post event');
     } finally {
       setPosting(false);
     }
+  };
+
+  const toggleEmojiSelect = (emoji: string) => {
+    setSelectedEmojis(prev =>
+      prev.includes(emoji) ? prev.filter(e => e !== emoji) : [...prev, emoji]
+    );
   };
 
   const handleDeleteEvent = async (id: string) => {
@@ -402,28 +418,48 @@ const PartyDetail: React.FC<PartyDetailProps> = ({ partyId, onBack }) => {
               </div>
             ) : (
               <div className="space-y-4 pb-4">
-                {visibleEvents.map((ev) => (
-                  <div key={ev.id} className="bg-zinc-800/50 p-4 rounded-2xl border border-white/5 group">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm text-white">{ev.profiles?.display_name || 'User'}</span>
-                        <span className="font-mono text-xs text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded cursor-pointer hover:bg-indigo-500/20" onClick={() => setCurrentTime(ev.timestamp_sec)}>
-                          {formatTime(ev.timestamp_sec)}
-                        </span>
+                {visibleEvents.map((ev) => {
+                  const isSpoilerRevealed = revealedSpoilers.has(ev.id);
+                  return (
+                    <div key={ev.id} className="bg-zinc-800/50 p-4 rounded-2xl border border-white/5 group">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-sm text-white">{ev.profiles?.display_name || 'User'}</span>
+                          <span className="font-mono text-xs text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded cursor-pointer hover:bg-indigo-500/20" onClick={() => setCurrentTime(ev.timestamp_sec)}>
+                            {formatTime(ev.timestamp_sec)}
+                          </span>
+                          {ev.is_spoiler && (
+                            <span className="text-xs px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded font-bold tracking-wide">SPOILER</span>
+                          )}
+                        </div>
+                        {ev.user_id === userId && (
+                          <button
+                            title="Delete reaction"
+                            onClick={() => handleDeleteEvent(ev.id)}
+                            className="opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-red-400 transition-all"
+                          >
+                            <Trash className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
-                      {ev.user_id === userId && (
-                        <button 
-                          title="Delete reaction"
-                          onClick={() => handleDeleteEvent(ev.id)}
-                          className="opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-red-400 transition-all"
+                      {ev.is_spoiler && !isSpoilerRevealed ? (
+                        <button
+                          className="text-xs text-zinc-500 hover:text-zinc-300 underline"
+                          onClick={() => setRevealedSpoilers(prev => new Set([...prev, ev.id]))}
                         >
-                          <Trash className="w-3 h-3" />
+                          Tap to reveal spoiler
                         </button>
+                      ) : (
+                        <>
+                          {ev.emojis?.length > 0 && (
+                            <p className="text-xl mb-1">{ev.emojis.join(' ')}</p>
+                          )}
+                          {ev.text && <p className="text-zinc-300 text-sm">{ev.text}</p>}
+                        </>
                       )}
                     </div>
-                    <p className="text-zinc-300 text-sm">{ev.text}</p>
-                  </div>
-                ))}
+                  );
+                })}
                 <div ref={eventsEndRef} />
               </div>
             )}
@@ -432,8 +468,21 @@ const PartyDetail: React.FC<PartyDetailProps> = ({ partyId, onBack }) => {
           <div className="pt-4 border-t border-white/5">
             {userId ? (
               <>
+                {/* Emoji quick-pick */}
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {QUICK_EMOJIS.map(emoji => (
+                    <button
+                      key={emoji}
+                      onClick={() => toggleEmojiSelect(emoji)}
+                      className={`text-base px-1.5 py-0.5 rounded-lg transition-colors ${selectedEmojis.includes(emoji) ? 'bg-indigo-500/30 ring-1 ring-indigo-400' : 'hover:bg-zinc-700'}`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+
                 <div className="relative">
-                  <textarea 
+                  <textarea
                     className="w-full bg-zinc-900 border border-white/10 rounded-xl p-4 pr-12 text-sm resize-none focus:border-indigo-500 focus:outline-none transition-colors"
                     placeholder="React to this moment..."
                     rows={2}
@@ -446,17 +495,29 @@ const PartyDetail: React.FC<PartyDetailProps> = ({ partyId, onBack }) => {
                       }
                     }}
                   />
-                  <button 
+                  <button
                     onClick={handlePostEvent}
-                    disabled={posting || !newEventText.trim()}
+                    disabled={posting || (!newEventText.trim() && selectedEmojis.length === 0)}
                     className="absolute right-3 bottom-3 p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <Send className="w-4 h-4" />
                   </button>
                 </div>
-                <p className="text-[10px] text-zinc-500 mt-2 text-right font-mono">
-                  Anchors securely to {formatTime(currentTime)}
-                </p>
+
+                <div className="flex items-center justify-between mt-2">
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={isSpoiler}
+                      onChange={(e) => setIsSpoiler(e.target.checked)}
+                      className="accent-red-500 w-3.5 h-3.5"
+                    />
+                    <span className="text-[11px] text-zinc-500">Mark as spoiler</span>
+                  </label>
+                  <p className="text-[10px] text-zinc-500 font-mono">
+                    Anchors to {formatTime(currentTime)}
+                  </p>
+                </div>
               </>
             ) : (
               <div className="text-center bg-zinc-800/30 rounded-xl p-4 border border-white/5">
